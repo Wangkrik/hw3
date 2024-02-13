@@ -7,6 +7,7 @@ int main(int argc, char* argv[]) {
     int max_bgprocs = -1;
 	int exec_result;
 	int exit_status;
+	int last_exit_status = -100;
 	pid_t pid;
 	pid_t wait_result;
 	char* line;
@@ -54,6 +55,29 @@ int main(int argc, char* argv[]) {
             validate_input(NULL);   // calling validate_input with NULL will free the memory it has allocated
             return 0;
 		}
+		// built-in: cd
+		if (strcmp(job->procs->cmd, "cd") == 0) {
+			// Terminating the shell
+			if (job->procs->argc == 1){
+				chdir(getenv("HOME"));
+			} else {
+				chdir(job->procs->argv[1]);
+			}
+			printf("Directory changed to %s\n", getcwd(NULL, 0));
+			free(line);
+			free_job(job);
+            //validate_input(NULL);   // calling validate_input with NULL will free the memory it has allocated
+            continue;
+		}
+		// built-in: estatus
+		if (strcmp(job->procs->cmd, "estatus") == 0) {
+			// Terminating the shell
+			printf("Exit status of last command: %d\n", last_exit_status);
+			free(line);
+			free_job(job);
+			//validate_input(NULL);   // calling validate_input with NULL will free the memory it has allocated
+			continue;
+		}
 
 		// example of good error handling!
         // create the child proccess
@@ -63,6 +87,7 @@ int main(int argc, char* argv[]) {
 		}
 		if (pid == 0) {  //If zero, then it's the child process
             //get the first command in the job list to execute
+			printf("This is the child process\n");
 		    proc_info* proc = job->procs;
 			exec_result = execvp(proc->cmd, proc->argv);
 			if (exec_result < 0) {  //Error checking
@@ -79,10 +104,12 @@ int main(int argc, char* argv[]) {
 		} else {
         	// As the parent, wait for the foreground job to finish
 			wait_result = waitpid(pid, &exit_status, 0);
+
 			if (wait_result < 0) {
 				printf(WAIT_ERR);
 				exit(EXIT_FAILURE);
 			}
+			last_exit_status = WEXITSTATUS(exit_status);
 		}
 
 		free_job(job);  // if a foreground job, we no longer need the data
